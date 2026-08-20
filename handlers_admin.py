@@ -13,13 +13,15 @@ from schemas import (
     DeleteWebhookSubscriptionParams, GetCustomObjectSchemaParams,
     ListCustomObjectSchemasParams, ListWebhookSubscriptionsParams,
     SetWebhookTargetUrlParams,
+    CustomObjectSchema, CustomObjectSchemaList, WebhookSubscriptionList, AccountInfo,
+    DeleteResult,
 )
 from handlers import _conn, _fail_to_result
 
 
 # ── Custom Object Schemas ───────────────────────────────────────────────
 
-@chat.function(name="list_custom_object_schemas", description="List custom object type definitions configured in this portal (Enterprise feature).")
+@chat.function(name="list_custom_object_schemas", description="List custom object type definitions configured in this portal (Enterprise feature).", data_model=CustomObjectSchemaList)
 async def list_custom_object_schemas(ctx, params: ListCustomObjectSchemasParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -30,7 +32,7 @@ async def list_custom_object_schemas(ctx, params: ListCustomObjectSchemasParams)
     return ActionResult.success({"items": results}, summary=f"{len(results)} custom object schema(s).")
 
 
-@chat.function(name="get_custom_object_schema", description="Read one custom object type's full schema -- its properties and association rules.")
+@chat.function(name="get_custom_object_schema", description="Read one custom object type's full schema -- its properties and association rules.", data_model=CustomObjectSchema)
 async def get_custom_object_schema(ctx, params: GetCustomObjectSchemaParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -44,8 +46,12 @@ async def get_custom_object_schema(ctx, params: GetCustomObjectSchemaParams) -> 
     name="create_custom_object_schema",
     description="Define a brand-new custom object type in this portal (Enterprise feature). Once created, use the generic object tools with this type's fully-qualified name.",
     action_type="write",
+    data_model=CustomObjectSchema,
+    event="hubspot-connector.create_custom_object_schema",
+    effects=["hubspot.custom_object_schema.created"],
 )
 async def create_custom_object_schema(ctx, params: CreateCustomObjectSchemaParams) -> ActionResult:
+    """Define a new custom object type via the CRM Object Schemas API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hce.create_custom_object_schema(
@@ -62,6 +68,7 @@ async def create_custom_object_schema(ctx, params: CreateCustomObjectSchemaParam
 @chat.function(
     name="list_webhook_subscriptions",
     description="List event subscriptions configured for a HubSpot Developer App. Needs app_id; pass developer_api_key if it differs from the connected Private App token.",
+    data_model=WebhookSubscriptionList,
 )
 async def list_webhook_subscriptions(ctx, params: ListWebhookSubscriptionsParams) -> ActionResult:
     try:
@@ -77,8 +84,12 @@ async def list_webhook_subscriptions(ctx, params: ListWebhookSubscriptionsParams
     name="create_webhook_subscription",
     description="Subscribe a HubSpot Developer App to a CRM event (e.g. contact.creation, deal.propertyChange). Advanced flow -- requires a Developer App id, not just the portal's Private App token.",
     action_type="write",
+    data_model=WebhookSubscriptionList,
+    event="hubspot-connector.create_webhook_subscription",
+    effects=["hubspot.webhook_subscription.created"],
 )
 async def create_webhook_subscription(ctx, params: CreateWebhookSubscriptionParams) -> ActionResult:
+    """Subscribe a Developer App to a CRM event type via the Webhooks API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hce.create_webhook_subscription(
@@ -90,8 +101,16 @@ async def create_webhook_subscription(ctx, params: CreateWebhookSubscriptionPara
     return ActionResult.success(data, summary=f"Subscribed app {params.app_id} to {params.subscription_type}.")
 
 
-@chat.function(name="delete_webhook_subscription", description="Remove a webhook event subscription from a Developer App.", action_type="write")
+@chat.function(
+    name="delete_webhook_subscription",
+    description="Remove a webhook event subscription from a Developer App.",
+    action_type="write",
+    data_model=DeleteResult,
+    event="hubspot-connector.delete_webhook_subscription",
+    effects=["hubspot.webhook_subscription.deleted"],
+)
 async def delete_webhook_subscription(ctx, params: DeleteWebhookSubscriptionParams) -> ActionResult:
+    """Remove one webhook event subscription from a Developer App via the Webhooks API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         await hce.delete_webhook_subscription(conn, params.app_id, params.subscription_id, params.developer_api_key)
@@ -100,8 +119,16 @@ async def delete_webhook_subscription(ctx, params: DeleteWebhookSubscriptionPara
     return ActionResult.success({"id": params.subscription_id}, summary=f"Deleted webhook subscription {params.subscription_id}.")
 
 
-@chat.function(name="set_webhook_target_url", description="Set (or change) the HTTPS endpoint a Developer App's webhook events are delivered to.", action_type="write")
+@chat.function(
+    name="set_webhook_target_url",
+    description="Set (or change) the HTTPS endpoint a Developer App's webhook events are delivered to.",
+    action_type="write",
+    data_model=WebhookSubscriptionList,
+    event="hubspot-connector.set_webhook_target_url",
+    effects=["hubspot.webhook_settings.updated"],
+)
 async def set_webhook_target_url(ctx, params: SetWebhookTargetUrlParams) -> ActionResult:
+    """Update a Developer App's webhook delivery target URL and concurrency limit."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hce.set_webhook_target_url(conn, params.app_id, params.target_url, params.max_concurrent_requests, params.developer_api_key)
@@ -112,7 +139,7 @@ async def set_webhook_target_url(ctx, params: SetWebhookTargetUrlParams) -> Acti
 
 # ── Account info ─────────────────────────────────────────────────────────
 
-@chat.function(name="get_account_info", description="Read this portal's account details -- hub id, time zone, currency, account type.")
+@chat.function(name="get_account_info", description="Read this portal's account details -- hub id, time zone, currency, account type.", data_model=AccountInfo)
 async def get_account_info(ctx, params: AccountInfoParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)

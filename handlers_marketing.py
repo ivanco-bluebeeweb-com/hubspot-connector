@@ -13,13 +13,15 @@ from schemas import (
     GetFileParams, GetFormSubmissionsParams, GetMarketingListParams,
     ListFilesParams, ListFormsParams, ListMarketingListsParams,
     ListMembershipParams, ModifyListMembershipParams, UploadFileParams,
+    MarketingListRecord, MarketingListRecordList, MembershipList,
+    FormRecordList, FormSubmissionList, FileRecord, FileRecordList,
 )
 from handlers import _conn, _fail_to_result
 
 
 # ── Marketing Lists ─────────────────────────────────────────────────────
 
-@chat.function(name="list_marketing_lists", description="List static/active contact lists defined in the portal.")
+@chat.function(name="list_marketing_lists", description="List static/active contact lists defined in the portal.", data_model=MarketingListRecordList)
 async def list_marketing_lists(ctx, params: ListMarketingListsParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -30,7 +32,7 @@ async def list_marketing_lists(ctx, params: ListMarketingListsParams) -> ActionR
     return ActionResult.success({"items": results}, summary=f"{len(results)} marketing list(s).")
 
 
-@chat.function(name="get_marketing_list", description="Read one contact list's definition (name, size, static or dynamic).")
+@chat.function(name="get_marketing_list", description="Read one contact list's definition (name, size, static or dynamic).", data_model=MarketingListRecord)
 async def get_marketing_list(ctx, params: GetMarketingListParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -40,7 +42,7 @@ async def get_marketing_list(ctx, params: GetMarketingListParams) -> ActionResul
     return ActionResult.success(data, summary=f"List {params.list_id}.")
 
 
-@chat.function(name="list_list_membership", description="List the contact ids belonging to one static list.")
+@chat.function(name="list_list_membership", description="List the contact ids belonging to one static list.", data_model=MembershipList)
 async def list_list_membership(ctx, params: ListMembershipParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -51,8 +53,16 @@ async def list_list_membership(ctx, params: ListMembershipParams) -> ActionResul
     return ActionResult.success({"items": results, "paging": data.get("paging", {})}, summary=f"{len(results)} member(s) of list {params.list_id}.")
 
 
-@chat.function(name="add_contacts_to_list", description="Add contacts to a static list by their record ids.", action_type="write")
+@chat.function(
+    name="add_contacts_to_list",
+    description="Add contacts to a static list by their record ids.",
+    action_type="write",
+    data_model=MembershipList,
+    event="hubspot-connector.add_contacts_to_list",
+    effects=["hubspot.list_membership.added"],
+)
 async def add_contacts_to_list(ctx, params: ModifyListMembershipParams) -> ActionResult:
+    """Add contact ids to a static marketing list via the Lists API membership endpoint."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hce.add_to_list(conn, params.list_id, params.contact_ids)
@@ -61,8 +71,16 @@ async def add_contacts_to_list(ctx, params: ModifyListMembershipParams) -> Actio
     return ActionResult.success(data, summary=f"Added {len(params.contact_ids)} contact(s) to list {params.list_id}.")
 
 
-@chat.function(name="remove_contacts_from_list", description="Remove contacts from a static list by their record ids.", action_type="write")
+@chat.function(
+    name="remove_contacts_from_list",
+    description="Remove contacts from a static list by their record ids.",
+    action_type="write",
+    data_model=MembershipList,
+    event="hubspot-connector.remove_contacts_from_list",
+    effects=["hubspot.list_membership.removed"],
+)
 async def remove_contacts_from_list(ctx, params: ModifyListMembershipParams) -> ActionResult:
+    """Remove contact ids from a static marketing list via the Lists API membership endpoint."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hce.remove_from_list(conn, params.list_id, params.contact_ids)
@@ -73,7 +91,7 @@ async def remove_contacts_from_list(ctx, params: ModifyListMembershipParams) -> 
 
 # ── Forms ────────────────────────────────────────────────────────────────
 
-@chat.function(name="list_forms", description="List marketing forms defined in the portal.")
+@chat.function(name="list_forms", description="List marketing forms defined in the portal.", data_model=FormRecordList)
 async def list_forms(ctx, params: ListFormsParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -84,7 +102,7 @@ async def list_forms(ctx, params: ListFormsParams) -> ActionResult:
     return ActionResult.success({"items": results}, summary=f"{len(results)} form(s).")
 
 
-@chat.function(name="get_form_submissions", description="List submissions received on one form, most recent first.")
+@chat.function(name="get_form_submissions", description="List submissions received on one form, most recent first.", data_model=FormSubmissionList)
 async def get_form_submissions(ctx, params: GetFormSubmissionsParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -97,7 +115,7 @@ async def get_form_submissions(ctx, params: GetFormSubmissionsParams) -> ActionR
 
 # ── Files ────────────────────────────────────────────────────────────────
 
-@chat.function(name="list_files", description="List files stored in the portal's File Manager.")
+@chat.function(name="list_files", description="List files stored in the portal's File Manager.", data_model=FileRecordList)
 async def list_files(ctx, params: ListFilesParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)
@@ -108,8 +126,16 @@ async def list_files(ctx, params: ListFilesParams) -> ActionResult:
     return ActionResult.success({"items": results, "paging": data.get("paging", {})}, summary=f"{len(results)} file(s).")
 
 
-@chat.function(name="upload_file", description="Upload a file into the File Manager by fetching it from a publicly reachable URL.", action_type="write")
+@chat.function(
+    name="upload_file",
+    description="Upload a file into the File Manager by fetching it from a publicly reachable URL.",
+    action_type="write",
+    data_model=FileRecord,
+    event="hubspot-connector.upload_file",
+    effects=["hubspot.file.uploaded"],
+)
 async def upload_file(ctx, params: UploadFileParams) -> ActionResult:
+    """Fetch a file from a public URL and store it in the portal's File Manager."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hce.upload_file_from_url(conn, params.file_url, params.file_name, params.folder_path, params.access)
@@ -118,7 +144,7 @@ async def upload_file(ctx, params: UploadFileParams) -> ActionResult:
     return ActionResult.success(data, summary=f"Uploaded {params.file_name}.")
 
 
-@chat.function(name="get_file", description="Read one file's metadata (URL, size, type) from the File Manager.")
+@chat.function(name="get_file", description="Read one file's metadata (URL, size, type) from the File Manager.", data_model=FileRecord)
 async def get_file(ctx, params: GetFileParams) -> ActionResult:
     try:
         conn = await _conn(ctx, params.connection_id)

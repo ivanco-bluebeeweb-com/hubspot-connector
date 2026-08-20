@@ -23,6 +23,8 @@ from schemas import (
     GetOwnerParams, GetPipelineParams, GetPropertyParams,
     ListAssociationsParams, ListOwnersParams, ListPipelinesParams,
     ListPropertiesParams, SearchObjectsParams,
+    CrmRecordList, AssociationList, PropertyDefList, PropertyDef,
+    PipelineList, Pipeline, OwnerList, OwnerRecord, DeleteResult,
 )
 from handlers import _conn, _fail_to_result
 
@@ -34,6 +36,7 @@ from handlers import _conn, _fail_to_result
 @chat.function(
     name="search_objects",
     description="Search CRM records of any object type with filters, sorting and free-text query -- the CRM Search API. Use this instead of list_objects when you need to filter (e.g. deals above a certain amount, contacts created after a date).",
+    data_model=CrmRecordList,
 )
 async def search_objects(ctx, params: SearchObjectsParams) -> ActionResult:
     try:
@@ -58,6 +61,7 @@ async def search_objects(ctx, params: SearchObjectsParams) -> ActionResult:
 @chat.function(
     name="batch_read_objects",
     description="Read up to 100 CRM records of one object type by id (or by a unique property like email) in a single call.",
+    data_model=CrmRecordList,
 )
 async def batch_read_objects(ctx, params: BatchObjectIdsParams) -> ActionResult:
     try:
@@ -73,8 +77,12 @@ async def batch_read_objects(ctx, params: BatchObjectIdsParams) -> ActionResult:
     name="batch_create_objects",
     description="Create up to 100 CRM records of one object type in a single call.",
     action_type="write",
+    data_model=CrmRecordList,
+    event="hubspot-connector.batch_create_objects",
+    effects=["hubspot.crm_record.created"],
 )
 async def batch_create_objects(ctx, params: BatchCreateParams) -> ActionResult:
+    """Create up to 100 CRM records in one call via the Batch Create API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hc.batch_create_objects(conn, params.object_type, params.records)
@@ -88,8 +96,12 @@ async def batch_create_objects(ctx, params: BatchCreateParams) -> ActionResult:
     name="batch_update_objects",
     description="Update up to 100 CRM records of one object type in a single call.",
     action_type="write",
+    data_model=CrmRecordList,
+    event="hubspot-connector.batch_update_objects",
+    effects=["hubspot.crm_record.updated"],
 )
 async def batch_update_objects(ctx, params: BatchUpdateParams) -> ActionResult:
+    """Update up to 100 CRM records in one call via the Batch Update API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hc.batch_update_objects(conn, params.object_type, params.records)
@@ -103,8 +115,12 @@ async def batch_update_objects(ctx, params: BatchUpdateParams) -> ActionResult:
     name="batch_archive_objects",
     description="Archive (soft-delete) up to 100 CRM records of one object type in a single call.",
     action_type="write",
+    data_model=DeleteResult,
+    event="hubspot-connector.batch_archive_objects",
+    effects=["hubspot.crm_record.archived"],
 )
 async def batch_archive_objects(ctx, params: BatchObjectIdsParams) -> ActionResult:
+    """Archive up to 100 CRM records in one call via the Batch Archive API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         await hc.batch_archive_objects(conn, params.object_type, params.object_ids)
@@ -120,6 +136,7 @@ async def batch_archive_objects(ctx, params: BatchObjectIdsParams) -> ActionResu
 @chat.function(
     name="list_associations",
     description="List the records associated with one CRM record (e.g. which contacts are linked to a deal).",
+    data_model=AssociationList,
 )
 async def list_associations(ctx, params: ListAssociationsParams) -> ActionResult:
     try:
@@ -135,8 +152,12 @@ async def list_associations(ctx, params: ListAssociationsParams) -> ActionResult
     name="associate_objects",
     description="Link two CRM records together (e.g. attach a contact to a deal, or a line item to a deal). Use association_type='' for HubSpot's default label, or a specific typed association id if you have one.",
     action_type="write",
+    data_model=AssociationList,
+    event="hubspot-connector.associate_objects",
+    effects=["hubspot.association.created"],
 )
 async def associate_objects(ctx, params: CreateAssociationParams) -> ActionResult:
+    """Create a v4 association between two CRM records."""
     try:
         conn = await _conn(ctx, params.connection_id)
         assoc_types = [{"associationCategory": "USER_DEFINED", "associationTypeId": params.association_type}] if params.association_type else []
@@ -153,8 +174,12 @@ async def associate_objects(ctx, params: CreateAssociationParams) -> ActionResul
     name="remove_association",
     description="Remove the link between two CRM records without deleting either record.",
     action_type="write",
+    data_model=DeleteResult,
+    event="hubspot-connector.remove_association",
+    effects=["hubspot.association.removed"],
 )
 async def remove_association(ctx, params: DeleteAssociationParams) -> ActionResult:
+    """Remove a v4 association between two CRM records."""
     try:
         conn = await _conn(ctx, params.connection_id)
         await hc.delete_association(conn, params.from_object_type, params.from_object_id, params.to_object_type, params.to_object_id)
@@ -170,6 +195,7 @@ async def remove_association(ctx, params: DeleteAssociationParams) -> ActionResu
 @chat.function(
     name="list_properties",
     description="List the properties (fields) defined on one CRM object type, including custom properties.",
+    data_model=PropertyDefList,
 )
 async def list_properties(ctx, params: ListPropertiesParams) -> ActionResult:
     try:
@@ -184,6 +210,7 @@ async def list_properties(ctx, params: ListPropertiesParams) -> ActionResult:
 @chat.function(
     name="get_property",
     description="Read one property's full definition (type, options if it's an enumeration, group).",
+    data_model=PropertyDef,
 )
 async def get_property(ctx, params: GetPropertyParams) -> ActionResult:
     try:
@@ -198,8 +225,12 @@ async def get_property(ctx, params: GetPropertyParams) -> ActionResult:
     name="create_property",
     description="Create a new custom property (field) on a CRM object type.",
     action_type="write",
+    data_model=PropertyDef,
+    event="hubspot-connector.create_property",
+    effects=["hubspot.property.created"],
 )
 async def create_property(ctx, params: CreatePropertyParams) -> ActionResult:
+    """Define a new custom property via the CRM Properties API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hc.create_property(
@@ -218,6 +249,7 @@ async def create_property(ctx, params: CreatePropertyParams) -> ActionResult:
 @chat.function(
     name="list_pipelines",
     description="List the pipelines defined for an object type (e.g. deal pipelines, ticket pipelines), each with its stages.",
+    data_model=PipelineList,
 )
 async def list_pipelines(ctx, params: ListPipelinesParams) -> ActionResult:
     try:
@@ -232,6 +264,7 @@ async def list_pipelines(ctx, params: ListPipelinesParams) -> ActionResult:
 @chat.function(
     name="get_pipeline",
     description="Read one pipeline in full, including its ordered stages.",
+    data_model=Pipeline,
 )
 async def get_pipeline(ctx, params: GetPipelineParams) -> ActionResult:
     try:
@@ -249,6 +282,7 @@ async def get_pipeline(ctx, params: GetPipelineParams) -> ActionResult:
 @chat.function(
     name="list_owners",
     description="List HubSpot owners (the users records can be assigned to) -- id, name, email.",
+    data_model=OwnerList,
 )
 async def list_owners(ctx, params: ListOwnersParams) -> ActionResult:
     try:
@@ -263,6 +297,7 @@ async def list_owners(ctx, params: ListOwnersParams) -> ActionResult:
 @chat.function(
     name="get_owner",
     description="Read one HubSpot owner in full by their owner id.",
+    data_model=OwnerRecord,
 )
 async def get_owner(ctx, params: GetOwnerParams) -> ActionResult:
     try:

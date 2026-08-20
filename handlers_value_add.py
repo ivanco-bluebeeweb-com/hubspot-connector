@@ -15,6 +15,8 @@ from app import chat
 from schemas import (
     BulkUpdateDealStageParams, FindDuplicateContactsParams,
     GetPipelineHealthParams, SyncCheckParams,
+    PipelineHealthReport, DuplicateGroupReport, SyncCheckReport,
+    CrmRecordList,
 )
 from handlers import _conn, _fail_to_result
 
@@ -22,6 +24,7 @@ from handlers import _conn, _fail_to_result
 @chat.function(
     name="get_pipeline_health",
     description="Audit one or all pipelines for an object type (deals or tickets): open record counts per stage, and how many are stale (not modified in stale_after_days).",
+    data_model=PipelineHealthReport,
 )
 async def get_pipeline_health(ctx, params: GetPipelineHealthParams) -> ActionResult:
     stage_property = "dealstage" if params.object_type == "deals" else "hs_pipeline_stage"
@@ -75,6 +78,7 @@ async def get_pipeline_health(ctx, params: GetPipelineHealthParams) -> ActionRes
 @chat.function(
     name="find_duplicate_contacts",
     description="Scan the most recent contacts for likely duplicates grouped by email (or another property you choose).",
+    data_model=DuplicateGroupReport,
 )
 async def find_duplicate_contacts(ctx, params: FindDuplicateContactsParams) -> ActionResult:
     try:
@@ -100,8 +104,12 @@ async def find_duplicate_contacts(ctx, params: FindDuplicateContactsParams) -> A
     name="bulk_update_deal_stage",
     description="Move up to 100 deals to a new pipeline stage in one call.",
     action_type="write",
+    data_model=CrmRecordList,
+    event="hubspot-connector.bulk_update_deal_stage",
+    effects=["hubspot.crm_record.updated"],
 )
 async def bulk_update_deal_stage(ctx, params: BulkUpdateDealStageParams) -> ActionResult:
+    """Move up to 100 deals to a new stage via the generic Batch Update API."""
     try:
         conn = await _conn(ctx, params.connection_id)
         updates = [{"id": deal_id, "properties": {"dealstage": params.new_stage_id}} for deal_id in params.deal_ids]
@@ -118,6 +126,7 @@ async def bulk_update_deal_stage(ctx, params: BulkUpdateDealStageParams) -> Acti
 @chat.function(
     name="sync_check",
     description="Quick health check for this connection: verifies the token, and reports the portal id and granted scopes.",
+    data_model=SyncCheckReport,
 )
 async def sync_check(ctx, params: SyncCheckParams) -> ActionResult:
     try:

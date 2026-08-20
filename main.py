@@ -17,7 +17,7 @@ _LOCAL = (
     "app", "schemas", "hubspot_client", "hubspot_client_extra",
     "handlers", "handlers_crm", "handlers_crm_named", "handlers_relations",
     "handlers_engagements", "handlers_marketing", "handlers_admin",
-    "handlers_value_add",
+    "handlers_value_add", "panels", "panels_settings",
 )
 for _mod in _LOCAL:
     sys.modules.pop(_mod, None)
@@ -31,3 +31,5 @@ import handlers_engagements  # noqa: E402,F401
 import handlers_marketing  # noqa: E402,F401
 import handlers_admin  # noqa: E402,F401
 import handlers_value_add  # noqa: E402,F401
+import panels  # noqa: E402,F401
+import panels_settings  # noqa: E402,F401

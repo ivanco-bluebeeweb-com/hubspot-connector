@@ -18,7 +18,7 @@ from imperal_sdk import ActionResult
 
 import hubspot_client as hc
 from app import chat
-from schemas import CreateEngagementParams, GetEngagementParams, ListEngagementsParams, UpdateEngagementParams
+from schemas import CreateEngagementParams, GetEngagementParams, ListEngagementsParams, UpdateEngagementParams, CrmRecord, CrmRecordList
 from handlers import _conn, _fail_to_result
 
 _TYPE_MAP = {"note": "notes", "call": "calls", "email": "emails", "meeting": "meetings", "task": "tasks"}
@@ -31,6 +31,7 @@ def _obj_type(engagement_type: str) -> str:
 @chat.function(
     name="list_engagements",
     description="List logged activities of one type (note, call, email, meeting, task) across the whole portal.",
+    data_model=CrmRecordList,
 )
 async def list_engagements(ctx, params: ListEngagementsParams) -> ActionResult:
     try:
@@ -45,6 +46,7 @@ async def list_engagements(ctx, params: ListEngagementsParams) -> ActionResult:
 @chat.function(
     name="get_engagement",
     description="Read one logged activity (note/call/email/meeting/task) in full.",
+    data_model=CrmRecord,
 )
 async def get_engagement(ctx, params: GetEngagementParams) -> ActionResult:
     try:
@@ -59,8 +61,12 @@ async def get_engagement(ctx, params: GetEngagementParams) -> ActionResult:
     name="create_engagement",
     description="Log a new activity (note, call, email, meeting, or task) and optionally associate it with a CRM record right away, e.g. log a call on a contact.",
     action_type="write",
+    data_model=CrmRecord,
+    event="hubspot-connector.create_engagement",
+    effects=["hubspot.engagement.created"],
 )
 async def create_engagement(ctx, params: CreateEngagementParams) -> ActionResult:
+    """Create a note/call/email/meeting/task record and optionally associate it with a CRM record."""
     try:
         conn = await _conn(ctx, params.connection_id)
         object_type = _obj_type(params.engagement_type)
@@ -77,8 +83,12 @@ async def create_engagement(ctx, params: CreateEngagementParams) -> ActionResult
     name="update_engagement",
     description="Update the properties of an existing logged activity.",
     action_type="write",
+    data_model=CrmRecord,
+    event="hubspot-connector.update_engagement",
+    effects=["hubspot.engagement.updated"],
 )
 async def update_engagement(ctx, params: UpdateEngagementParams) -> ActionResult:
+    """Patch an existing note/call/email/meeting/task record's properties."""
     try:
         conn = await _conn(ctx, params.connection_id)
         data = await hc.update_object(conn, _obj_type(params.engagement_type), params.engagement_id, params.properties)

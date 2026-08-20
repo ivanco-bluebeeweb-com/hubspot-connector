@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import Any
 
 from pydantic import BaseModel, Field
+from imperal_sdk import sdl
 
 
 class NoParams(BaseModel):
@@ -366,3 +367,215 @@ class BulkUpdateDealStageParams(ConnectionScoped):
 
 class SyncCheckParams(ConnectionScoped):
     pass
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# SDL entity contracts (data_model=) -- Federal Typed Return Contract V23.
+#
+# WHY A SMALL SET OF REUSABLE, LOOSELY-TYPED ENTITIES RATHER THAN ONE MODEL
+# PER TOOL.
+#
+# HubSpot's own object model is genuinely dynamic: every portal can add
+# custom properties to any object type (confirmed developers.hubspot.com/
+# docs/api-reference/latest/crm/properties, 2026-08-20), so a rigid,
+# fully-typed field-by-field schema per object type would go stale the
+# moment a customer adds one custom property, or break entirely for a
+# custom object type. Each entity below carries the fields HubSpot ALWAYS
+# returns (id, timestamps) plus a raw `properties`/payload dict for
+# everything else -- the same "core fields typed, payload open" shape
+# Workato Connector and Make.com Connector use for their own generic
+# record/execution entities.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class ProviderConnection(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    connected: bool = False
+    detail: str = ""
+    portal_id: str = ""
+
+
+class ProviderConnectionList(sdl.Entity):
+    id: str = "hubspot_connections"
+    title: str = "HubSpot connections"
+    items: list[ProviderConnection] = Field(default_factory=list)
+
+
+class CrmRecord(sdl.Entity):
+    """One CRM object record (contact, company, deal, ticket, product,
+    line item, engagement, or custom object instance)."""
+    id: str = ""
+    title: str = ""
+    object_type: str = ""
+    properties: dict[str, Any] = Field(default_factory=dict)
+    created_at: str = ""
+    updated_at: str = ""
+    archived: bool = False
+
+
+class CrmRecordList(sdl.Entity):
+    id: str = "crm_record_list"
+    title: str = ""
+    items: list[CrmRecord] = Field(default_factory=list)
+    paging_next_after: str = ""
+
+
+class AssociationEntry(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    to_object_id: str = ""
+    association_types: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AssociationList(sdl.Entity):
+    id: str = "association_list"
+    title: str = ""
+    items: list[AssociationEntry] = Field(default_factory=list)
+
+
+class PropertyDef(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    type: str = ""
+    field_type: str = ""
+    group_name: str = ""
+
+
+class PropertyDefList(sdl.Entity):
+    id: str = "property_def_list"
+    title: str = ""
+    items: list[PropertyDef] = Field(default_factory=list)
+
+
+class PipelineStage(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    display_order: int = 0
+
+
+class Pipeline(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    stages: list[PipelineStage] = Field(default_factory=list)
+
+
+class PipelineList(sdl.Entity):
+    id: str = "pipeline_list"
+    title: str = ""
+    items: list[Pipeline] = Field(default_factory=list)
+
+
+class OwnerRecord(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    email: str = ""
+    archived: bool = False
+
+
+class OwnerList(sdl.Entity):
+    id: str = "owner_list"
+    title: str = ""
+    items: list[OwnerRecord] = Field(default_factory=list)
+
+
+class MarketingListRecord(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    list_type: str = ""
+    size: int = 0
+
+
+class MarketingListRecordList(sdl.Entity):
+    id: str = "marketing_list_list"
+    title: str = ""
+    items: list[MarketingListRecord] = Field(default_factory=list)
+
+
+class MembershipList(sdl.Entity):
+    id: str = "membership_list"
+    title: str = ""
+    items: list[str] = Field(default_factory=list)
+
+
+class FormRecord(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    form_type: str = ""
+
+
+class FormRecordList(sdl.Entity):
+    id: str = "form_list"
+    title: str = ""
+    items: list[FormRecord] = Field(default_factory=list)
+
+
+class FormSubmissionList(sdl.Entity):
+    id: str = "form_submission_list"
+    title: str = ""
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class FileRecord(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    file_url: str = ""
+    file_type: str = ""
+
+
+class FileRecordList(sdl.Entity):
+    id: str = "file_list"
+    title: str = ""
+    items: list[FileRecord] = Field(default_factory=list)
+
+
+class CustomObjectSchema(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    object_type_id: str = ""
+    fully_qualified_name: str = ""
+
+
+class CustomObjectSchemaList(sdl.Entity):
+    id: str = "custom_object_schema_list"
+    title: str = ""
+    items: list[CustomObjectSchema] = Field(default_factory=list)
+
+
+class WebhookSubscriptionList(sdl.Entity):
+    id: str = "webhook_subscription_list"
+    title: str = ""
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class AccountInfo(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    portal_id: str = ""
+    time_zone: str = ""
+    currency: str = ""
+
+
+class PipelineHealthReport(sdl.Entity):
+    id: str = "pipeline_health_report"
+    title: str = ""
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DuplicateGroupReport(sdl.Entity):
+    id: str = "duplicate_group_report"
+    title: str = ""
+    duplicate_groups: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class DeleteResult(sdl.Entity):
+    id: str = ""
+    title: str = ""
+    ok: bool = True
+
+
+class SyncCheckReport(sdl.Entity):
+    id: str = "sync_check_report"
+    title: str = ""
+    healthy: bool = True
+    detail: str = ""

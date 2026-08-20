@@ -22,6 +22,9 @@ from schemas import (
     NoParams,
     ConnectHubspotParams,
     DisconnectHubspotParams,
+    ProviderConnection,
+    ProviderConnectionList,
+    DeleteResult,
 )
 
 _SECRET_NAME = "hubspot_connections"
@@ -103,8 +106,12 @@ def _connection_to_dict(c: dict) -> dict:
     ),
     action_type="write",
     chain_callable=True,
+    data_model=ProviderConnection,
+    event="hubspot-connector.connect_hubspot",
+    effects=["hubspot.provider.connected"],
 )
 async def connect_hubspot(ctx, params: ConnectHubspotParams) -> ActionResult:
+    """Connect a HubSpot portal via a Private App access token, verifying it against the Account Info API first."""
     token = params.access_token.strip()
     if not token:
         return ActionResult.fail("access_token is required.")
@@ -135,8 +142,12 @@ async def connect_hubspot(ctx, params: ConnectHubspotParams) -> ActionResult:
     name="disconnect_hubspot",
     description="Disconnect a connected HubSpot portal. This does not revoke the Private App token in HubSpot itself -- revoke/delete it there too if you no longer want it valid.",
     action_type="write",
+    data_model=DeleteResult,
+    event="hubspot-connector.disconnect_hubspot",
+    effects=["hubspot.provider.disconnected"],
 )
 async def disconnect_hubspot(ctx, params: DisconnectHubspotParams) -> ActionResult:
+    """Remove a stored HubSpot connection's access token from this app's own secrets."""
     connections = await _load_connections(ctx)
     if not connections:
         return ActionResult.fail("No HubSpot portal is connected.")
@@ -151,6 +162,7 @@ async def disconnect_hubspot(ctx, params: DisconnectHubspotParams) -> ActionResu
 @chat.function(
     name="list_connections",
     description="List the connected HubSpot portals -- portal id, domain, and label.",
+    data_model=ProviderConnectionList,
 )
 async def list_connections(ctx, params: NoParams) -> ActionResult:
     connections = await _load_connections(ctx)
