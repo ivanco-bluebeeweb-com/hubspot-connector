@@ -1,5 +1,14 @@
 # Pricing History — HubSpot Connector
 
+## 2026-08-22 — повторное подтверждение цены (suspend → update_pricing → deploy → submit_for_review)
+
+Тот же паттерн: `suspend_app` (было live) → первый `update_pricing`
+вернул `'connect_hubspot'/'disconnect_hubspot'/'list_connections'
+unexpectedly still priced` (расхождение только по free_tools) →
+немедленный повтор с тем же payload прошёл без ошибки, цена подтверждена.
+Задокументировано как задача #2275 (Imperal Cloud tracker). `deploy_app`
+(21/22, commit dd198171) → `submit_for_review` → `pending_review`.
+
 Обязательный журнал: каждое выставление или изменение цен на функции этого
 приложения фиксируется здесь — что изменилось, почему, и на основании
 чего. Не переписывать прошлые записи — только дописывать новые сверху.
