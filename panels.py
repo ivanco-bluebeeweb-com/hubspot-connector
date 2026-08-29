@@ -248,7 +248,7 @@ async def _deal_detail(ctx, deal_id: str) -> ui.UINode:
     from schemas import GetObjectParams
     result = await h.get_object(ctx, GetObjectParams(object_type="deals", object_id=deal_id))
     if not result.success or not result.data:
-        return ui.Error(message="Could not load this deal.", retry_action=ui.Call("__panel__hubspot_center"))
+        return ui.Error(message="Could not load this deal.", retry=ui.Call("__panel__hubspot_center"))
     props = result.data.properties or {}
     return ui.Stack(direction="v", gap=3, align="stretch", children=[
         ui.Button("← Back to pipeline", variant="ghost", size="sm",
