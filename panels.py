@@ -139,6 +139,9 @@ async def hubspot_connect_panel(ctx, **kwargs) -> object:
         ui.Text(f"Recent contacts -- {first.get('label') or first.get('portal_id', '')}", variant="subtitle"),
         _snapshot_section(records),
         ui.Divider(),
+        ui.Button("View pipeline", variant="primary", size="sm", full_width=True,
+                  icon="TrendingUp", on_click=ui.Call("__panel__hubspot_center")),
+        ui.Divider(),
         _settings_button(),
     ])
 
@@ -178,16 +181,86 @@ async def hubspot_connect_help(ctx, **kwargs) -> object:
     )
 
 
+def _deal_row(r) -> dict:
+    props = r.properties or {}
+    return {
+        "name": props.get("dealname") or r.title or r.id,
+        "stage": props.get("dealstage", "—"),
+        "amount": props.get("amount", "—"),
+        "close_date": (props.get("closedate") or "")[:10] or "—",
+        "deal_id": r.id,
+    }
+
+
 @ext.panel("hubspot_center", slot="center", title="HubSpot", icon="🧡", center_overlay=True)
-async def hubspot_center_panel(ctx, **kwargs) -> object:
-    """Base center panel -- per UI_INTERFACE_STANDARD.md (2026-08-20).
-    This app has no list/detail content of its own to show in the center
-    by default (everything lives in the sidebar). MUST carry
-    center_overlay=True: per docs.imperal.io/en/concepts/panels, a plain
-    slot="center" panel is registered but the Panel app never fetches it
-    at session-init without that flag. Text is the shared canonical
-    wording -- must stay identical across every app in this situation."""
-    return ui.Empty(
-        message="Nothing to show here -- this app is managed entirely from the sidebar.",
-        icon="👈",
-    )
+async def hubspot_center_panel(ctx, deal_id: str = "", **kwargs) -> object:
+    """Post-connect main screen: deals pipeline dashboard, or a deal detail
+    when `deal_id` is passed (master-detail via the same panel_id, per
+    UI_COMPONENT_VOCABULARY.md §3)."""
+    connections = await h._load_connections(ctx)
+    if not connections:
+        return ui.Empty(
+            message="Connect a HubSpot portal from the sidebar to see your pipeline here.",
+            icon="🧡",
+        )
+    if deal_id:
+        return await _deal_detail(ctx, deal_id)
+    return await _pipeline_dashboard(ctx)
+
+
+async def _pipeline_dashboard(ctx) -> ui.UINode:
+    from schemas import GetPipelineHealthParams, ListObjectsParams
+    health_result = await h.get_pipeline_health(ctx, GetPipelineHealthParams(object_type="deals"))
+    stats: list[ui.UINode] = []
+    if health_result.success and health_result.data and health_result.data.rows:
+        total_open = sum(int(row.get("open_count", 0) or 0) for row in health_result.data.rows)
+        total_stale = sum(int(row.get("stale_count", 0) or 0) for row in health_result.data.rows)
+        stats = [
+            ui.Stat(label="Open deals", value=str(total_open)),
+            ui.Stat(label="Stale (30d+)", value=str(total_stale)),
+            ui.Stat(label="Pipeline stages tracked", value=str(len(health_result.data.rows))),
+        ]
+
+    deals_result = await h.list_deals(ctx, ListObjectsParams(object_type="deals", limit=50))
+    body: list[ui.UINode] = []
+    if stats:
+        body.append(ui.Stats(children=stats))
+    body.append(ui.Divider())
+    body.append(ui.Text("Deals", variant="subtitle"))
+    if deals_result.success and deals_result.data and deals_result.data.items:
+        rows = [_deal_row(r) for r in deals_result.data.items]
+        body.append(ui.DataTable(
+            columns=[
+                ui.DataColumn("name", "Deal", sortable=True),
+                ui.DataColumn("stage", "Stage", sortable=True),
+                ui.DataColumn("amount", "Amount", sortable=True),
+                ui.DataColumn("close_date", "Close date", sortable=True),
+            ],
+            rows=rows,
+            on_row_click=ui.Call("__panel__hubspot_center", deal_id=""),
+        ))
+    else:
+        body.append(ui.Empty(message="No deals found in this portal yet.", icon="🧡"))
+    return ui.Stack(direction="v", gap=3, align="stretch", children=body)
+
+
+async def _deal_detail(ctx, deal_id: str) -> ui.UINode:
+    from schemas import GetObjectParams
+    result = await h.get_object(ctx, GetObjectParams(object_type="deals", object_id=deal_id))
+    if not result.success or not result.data:
+        return ui.Error(message="Could not load this deal.", retry_action=ui.Call("__panel__hubspot_center"))
+    props = result.data.properties or {}
+    return ui.Stack(direction="v", gap=3, align="stretch", children=[
+        ui.Button("← Back to pipeline", variant="ghost", size="sm",
+                  on_click=ui.Call("__panel__hubspot_center")),
+        ui.Header(text=props.get("dealname") or deal_id, level=3),
+        ui.KeyValue(items=[
+            {"key": "Stage", "value": props.get("dealstage", "—")},
+            {"key": "Amount", "value": props.get("amount", "—")},
+            {"key": "Close date", "value": (props.get("closedate") or "")[:10] or "—"},
+            {"key": "Pipeline", "value": props.get("pipeline", "—")},
+        ]),
+    ])
+
+
+
