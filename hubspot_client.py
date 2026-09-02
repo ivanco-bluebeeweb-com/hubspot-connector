@@ -79,9 +79,15 @@ async def _request(conn: dict, method: str, path: str, *, params: dict | None = 
     return resp.json()
 
 
+async def get_account_info(conn_or_token: dict | str) -> dict:
+    """Confirm the token works and read account details (/account-info/v3/details)."""
+    conn = conn_or_token if isinstance(conn_or_token, dict) else {"access_token": conn_or_token}
+    return await _request(conn, "GET", "/account-info/v3/details")
+
+
 async def verify_token(conn: dict) -> dict:
     """Confirm the token works and identify the portal (hub_id, scopes)."""
-    return await _request(conn, "GET", "/account-info/v3/details")
+    return await get_account_info(conn)
 
 
 # ──────────────────────────────────────────────────────────────────────────
