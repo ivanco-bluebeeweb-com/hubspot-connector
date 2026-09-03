@@ -33,8 +33,7 @@ def _settings_button() -> ui.UINode:
     """The one required secondary entry point into the settings screen --
     always the last element at the bottom of the sidebar."""
     return ui.Button(
-        "App settings", variant="secondary", size="sm", full_width=True,
-        icon="settings", on_click=ui.Call("__panel__hubspot_settings"),
+        "App settings", variant="secondary", size="sm", icon="settings", on_click=ui.Call("__panel__hubspot_settings"),
     )
 
 
@@ -67,6 +66,9 @@ def _connect_section() -> ui.UINode:
         ui.Button("How do I set this up?", variant="ghost", size="sm",
                   icon="HelpCircle",
                   on_click=ui.Call("__panel__hubspot_connect_help")),
+        ui.Button("Connect HubSpot Portal (OAuth 2.0)", variant="primary", size="sm", icon="login"),
+        ui.Divider(),
+        ui.Text("Or connect via Private App Token", variant="caption"),
         ui.Form(
             action="connect_hubspot",
             submit_label="Verify and connect",
@@ -139,8 +141,7 @@ async def hubspot_connect_panel(ctx, **kwargs) -> object:
         ui.Text(f"Recent contacts -- {first.get('label') or first.get('portal_id', '')}", variant="subtitle"),
         _snapshot_section(records),
         ui.Divider(),
-        ui.Button("View pipeline", variant="primary", size="sm", full_width=True,
-                  icon="TrendingUp", on_click=ui.Call("__panel__hubspot_center")),
+        ui.Button("View pipeline", variant="primary", size="sm", icon="TrendingUp", on_click=ui.Call("__panel__hubspot_center")),
         ui.Divider(),
         _settings_button(),
     ])
